@@ -1,0 +1,1 @@
+poetry run uvicorn server:app --port 5000 --reload

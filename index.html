@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Private Chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            width: 700px;
+            margin: 40px auto;
+        }
+
+        #messages {
+            list-style: none;
+            padding: 0;
+        }
+
+        #messages li {
+            margin: 10px 0;
+            padding: 8px;
+            border-radius: 5px;
+            background: #f3f3f3;
+            white-space: pre-wrap;
+        }
+
+        input {
+            width: 500px;
+            padding: 8px;
+        }
+
+        button {
+            padding: 8px 15px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Isolated AI Chat Session</h1>
+<h3 id="session-display"></h3>
+
+<form onsubmit="sendMessage(event)">
+    <input
+        type="text"
+        id="messageText"
+        autocomplete="off"
+        placeholder="Ask AI..."
+    />
+    <button>Send</button>
+</form>
+
+<ul id="messages"></ul>
+
+<script>
+    // Create or reuse session ID
+    let sessionId = sessionStorage.getItem("chat_session_id");
+
+    if (!sessionId) {
+        sessionId = "session_" + Math.random().toString(36).substring(2, 11);
+        sessionStorage.setItem("chat_session_id", sessionId);
+    }
+
+    document.getElementById("session-display").innerText =
+        "Session ID: " + sessionId;
+
+    // Connect websocket
+    const ws = new WebSocket(
+        `ws://localhost:5000/chat?session_id=${sessionId}`
+    );
+
+    const messages = document.getElementById("messages");
+
+    // Holds the current AI message while streaming
+    let currentAiMessage = null;
+
+    ws.onopen = () => {
+        console.log("Connected");
+    };
+
+    ws.onclose = () => {
+        console.log("Disconnected");
+    };
+
+    ws.onerror = (err) => {
+        console.error(err);
+    };
+
+    ws.onmessage = function(event) {
+
+        // Server sends this when streaming is finished
+        if (event.data === "[DONE]") {
+            currentAiMessage = null;
+            return;
+        }
+
+        // Create a new AI message only once
+        if (!currentAiMessage) {
+            currentAiMessage = document.createElement("li");
+
+            const label = document.createElement("strong");
+            label.textContent = "AI: ";
+
+            currentAiMessage.appendChild(label);
+            messages.appendChild(currentAiMessage);
+        }
+
+        // Append streamed text to same message
+        currentAiMessage.appendChild(
+            document.createTextNode(event.data)
+        );
+
+        window.scrollTo(0, document.body.scrollHeight);
+    };
+
+    function sendMessage(event) {
+        event.preventDefault();
+
+        const input = document.getElementById("messageText");
+
+        if (!input.value.trim())
+            return;
+
+        // User message
+        const userMessage = document.createElement("li");
+
+        const label = document.createElement("strong");
+        label.textContent = "You: ";
+
+        userMessage.appendChild(label);
+        userMessage.appendChild(
+            document.createTextNode(input.value)
+        );
+
+        messages.appendChild(userMessage);
+
+        // Reset AI message so next response starts on a new line
+        currentAiMessage = null;
+
+        ws.send(input.value);
+
+        input.value = "";
+
+        window.scrollTo(0, document.body.scrollHeight);
+    }
+</script>
+
+</body>
+</html>
