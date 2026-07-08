@@ -34,7 +34,6 @@ async def chat(websocket: WebSocket, session_id: str = Query(...)):
                 if content:
                     response += content
                     await websocket.send_text(content)
-            await websocket.send_text("[DONE]")
             
             history.append({
                 "role": "assistant",
@@ -42,7 +41,6 @@ async def chat(websocket: WebSocket, session_id: str = Query(...)):
             })
 
             await manager.set_conversation(session_id, history)
-            # await manager.send_message(session_id, response)
 
     except WebSocketDisconnect:
         await manager.disconnect(session_id)
