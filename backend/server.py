@@ -1,6 +1,8 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 import connection_manager
 import inference
+import asyncio
+from messaging_queue import queue
 
 app = FastAPI()
 manager = connection_manager.ConnectionManager()
@@ -26,21 +28,28 @@ async def chat(websocket: WebSocket, session_id: str = Query(...)):
                 "content": user_message
             })
 
-            stream = inference.ollama_response(history)
-            response = ""
+            print(history)
 
-            async for chunk in stream:
-                content = chunk.get('message', {}).get('content', "")
-                if content:
-                    response += content
-                    await websocket.send_text(content)
+            job = queue.enqueue(inference.ollama_response, history)
+
+            while job.result is None:
+                job.refresh()
+                await asyncio.sleep(0.5)
+
+            response = job.result
+
+            # response = inference.ollama_response(history)
             
             history.append({
                 "role": "assistant",
                 "content": response
             })
 
+            print(history)
+
             await manager.set_conversation(session_id, history)
+
+            await websocket.send_text(response)
 
     except WebSocketDisconnect:
         await manager.disconnect(session_id)
